@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Создать задание — Teacher</title>
+<style>
+  body{font-family:system-ui,Arial;margin:20px;max-width:920px}
+  h1{margin-bottom:6px}
+  label{display:block;margin-top:12px;font-weight:600}
+  input[type=text], textarea{width:100%;padding:8px;border-radius:6px;border:1px solid #ddd;font-size:15px}
+  .questions {margin-top:10px}
+  .question-row{display:flex;gap:8px;margin-top:8px}
+  .question-row input{flex:1;padding:8px}
+  .question-row button{padding:6px 8px}
+  .controls{margin-top:14px}
+  button{background:#2d8cff;color:#fff;padding:10px 14px;border-radius:8px;border:0;cursor:pointer}
+  .btn-ghost{background:#eee;color:#333;border:0}
+  #preview img{max-width:100%;border-radius:6px;border:1px solid #eaeaea}
+  .small{font-size:13px;color:#666}
+  .link-out{margin-top:12px;padding:10px;background:#f6f8ff;border-radius:8px}
+</style>
+</head>
+<body>
+  <h1>Создать задание</h1>
+  <div>
+    <label>Название задания
+      <input id="title" placeholder="Например: Математика — тест 1">
+    </label>
+
+    <label>Загрузить PNG (или перетащи сюда)
+      <input id="imageInput" type="file" accept="image/png,image/*">
+    </label>
+    <div id="preview" style="margin-top:8px"></div>
+
+    <div class="questions">
+      <label>Вопросы (порядок — порядок страниц, их можно добавлять/удалять)</label>
+      <div id="questionsList"></div>
+      <div style="margin-top:8px">
+        <button id="addQ" class="btn-ghost">+ Добавить вопрос</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="saveBtn">Сохранить задание и загрузить</button>
+      <span class="small">После сохранения появится assignmentId и ссылка для ученика (использует последнее задание).</span>
+    </div>
+
+    <div id="result" class="link-out"></div>
+  </div>
+
+<script>
+const WEB_APP_URL = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLiG9xrIW7YNIPH-ZOWyEZeYlIm5du-PiQN2GhPBrobIPnGv8oWLbvurqfnwnzfBfUmnqAxlnKI6td-VrEqPjHJWzanP1eNOIicr2TBwuL2m71x-cAu4tLq68tgRbAyzbkY0LsmgJmAXV94AJsFVWKNAgwVYgkwZqsOrBtkYyScvl5gQeZyLSRggm_7XMYjnhqhWsB8igkT8UkI5evBLHlgYh9V-rFQy_T3wVd3-Et5BTu6AnpbvftiTmoMvXvMpPxqpj1o5LeiYRRSjDAEv4jqgiSCSvs0zH9gHfIk4&lib=MlxzAgd1_FEZALgCNLrMI0G3Q1ogcA_uP"; // <-- Вставь сюда URL Web App
+
+const imageInput = document.getElementById("imageInput");
+const preview = document.getElementById("preview");
+const questionsList = document.getElementById("questionsList");
+const addQ = document.getElementById("addQ");
+const saveBtn = document.getElementById("saveBtn");
+const result = document.getElementById("result");
+const titleEl = document.getElementById("title");
+
+let currentImageDataUrl = "";
+
+function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;" })[c]); }
+
+addQ.addEventListener("click", ()=> addQuestion(""));
+
+function addQuestion(text){
+  const div = document.createElement("div");
+  div.className = "question-row";
+  div.innerHTML = `<input class="qtext" placeholder="Текст вопроса..." value="${escapeHtml(text)}">
+                   <button class="del">Удалить</button>`;
+  questionsList.appendChild(div);
+  div.querySelector(".del").addEventListener("click", ()=>div.remove());
+}
+
+// drag & drop preview (упрощённо)
+preview.addEventListener('dragover', (e)=>{ e.preventDefault(); preview.style.opacity=0.8; });
+preview.addEventListener('dragleave', (e)=>{ preview.style.opacity=1; });
+preview.addEventListener('drop', (e)=> {
+  e.preventDefault();
+  preview.style.opacity=1;
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+imageInput.addEventListener("change", (ev) => {
+  const file = ev.target.files[0];
+  if (file) handleFile(file);
+});
+
+function handleFile(file){
+  if (!file.type.startsWith("image/")) { alert("Загрузите изображение"); return; }
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    currentImageDataUrl = evt.target.result;
+    preview.innerHTML = `<img src="${currentImageDataUrl}" alt="preview">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+saveBtn.addEventListener("click", async ()=>{
+  result.innerHTML = "";
+  const title = titleEl.value.trim() || ("Задание " + new Date().toLocaleString());
+  const qEls = Array.from(document.querySelectorAll(".qtext"));
+  const questions = qEls.map(i=>i.value.trim()).filter(x=>x!=="");
+  if (!currentImageDataUrl) { result.innerHTML = '<div style="color:red">Пожалуйста, загрузите PNG.</div>'; return; }
+  if (questions.length === 0) { if(!confirm("Нет вопросов — сохранить без вопросов?")) return; }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Загрузка...";
+
+  try {
+    const payload = { action: "createAssignment", title, questions, imageDataUrl: currentImageDataUrl };
+    const res = await fetch(WEB_APP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      result.innerHTML = `<div style="color:green">Готово. assignmentId: <b>${data.assignmentId}</b></div>
+                          <div style="margin-top:8px">Ссылка для ученика (использует последнее задание): <b>student.html</b> (подставь WEB_APP_URL в файл)</div>
+                          <div class="small" style="margin-top:6px">Если хочешь дать ссылку на конкретное задание: запиши assignmentId и используй ?action=getById&id=ASSIGNMENT_ID в student page.</div>`;
+    } else {
+      result.innerHTML = `<div style="color:red">Ошибка: ${data.message || "неизвестно"}</div>`;
+    }
+  } catch (err) {
+    result.innerHTML = `<div style="color:red">Ошибка сети: ${err.message}</div>`;
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Сохранить задание и загрузить";
+  }
+});
+
+// добавим по умолчанию 5 вопросов (можешь удалить)
+for (let i=0;i<5;i++) addQuestion("");
+</script>
+</body>
+</html>

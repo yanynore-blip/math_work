@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Сдать ответ — ДЗ</title>
+<style>
+  :root{--maxw:900px}
+  body{font-family:system-ui,Arial,Helvetica;margin:18px;display:flex;justify-content:center}
+  .wrap{max-width:var(--maxw);width:100%}
+  .card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
+  h2{margin:0 0 10px 0}
+  .img-wrap{text-align:center;margin:10px 0}
+  .img-wrap img{max-width:100%;height:auto;border:1px solid #e8e8e8;border-radius:6px}
+  .question-box{margin-top:12px}
+  .qtext{font-weight:600;margin-bottom:8px}
+  .frac-inputs{display:flex;gap:8px;align-items:center}
+  .frac-inputs input{flex:1;padding:10px;font-size:16px;border:1px solid #ddd;border-radius:8px}
+  .controls{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+  button{padding:10px 14px;border-radius:8px;border:0;cursor:pointer}
+  .btn-ghost{background:transparent;border:1px solid #ddd}
+  .progress{font-size:14px;color:#666}
+  .msg{margin-top:12px}
+  .ok{color:green}
+  .err{color:red}
+  .student-name{margin-top:8px}
+  .student-name input{width:100%;padding:8px;border-radius:6px;border:1px solid #ddd}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h2 id="title">Загрузка задания…</h2>
+      <div id="imageArea" class="img-wrap"></div>
+
+      <div class="student-name">
+        <label style="font-weight:600">Имя ученика (необязательно)</label>
+        <input id="studentName" placeholder="Например: Иван Иванов">
+      </div>
+
+      <div id="questionArea" class="question-box"></div>
+
+      <div class="controls">
+        <button id="prevBtn" class="btn-ghost">← Назад</button>
+        <div class="progress" id="progress">0 / 0</div>
+        <button id="nextBtn">Далее →</button>
+      </div>
+
+      <div id="msg" class="msg"></div>
+
+      <div style="margin-top:12px;font-size:13px;color:#666">
+        Примечание: в поля вписывайте числитель и знаменатель дроби отдельно. Если ответ — не дробь, можно оставить одно из полей пустым и ввести полный ответ в поле числителя.
+      </div>
+    </div>
+  </div>
+
+<script>
+const WEB_APP_URL = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLiG9xrIW7YNIPH-ZOWyEZeYlIm5du-PiQN2GhPBrobIPnGv8oWLbvurqfnwnzfBfUmnqAxlnKI6td-VrEqPjHJWzanP1eNOIicr2TBwuL2m71x-cAu4tLq68tgRbAyzbkY0LsmgJmAXV94AJsFVWKNAgwVYgkwZqsOrBtkYyScvl5gQeZyLSRggm_7XMYjnhqhWsB8igkT8UkI5evBLHlgYh9V-rFQy_T3wVd3-Et5BTu6AnpbvftiTmoMvXvMpPxqpj1o5LeiYRRSjDAEv4jqgiSCSvs0zH9gHfIk4&lib=MlxzAgd1_FEZALgCNLrMI0G3Q1ogcA_uP"; // <- вставь сюда URL Apps Script
+
+let assignment = null;
+let currentIndex = 0;
+let answersCache = []; // локально сохраняем введённые значения между страницами
+
+const titleEl = document.getElementById("title");
+const imageArea = document.getElementById("imageArea");
+const questionArea = document.getElementById("questionArea");
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const progressEl = document.getElementById("progress");
+const msgEl = document.getElementById("msg");
+const studentNameInput = document.getElementById("studentName");
+
+prevBtn.addEventListener("click", ()=> {
+  if (currentIndex > 0) {
+    saveLocalInputs();
+    currentIndex--;
+    renderQuestion();
+  }
+});
+
+nextBtn.addEventListener("click", async ()=> {
+  msgEl.innerHTML = "";
+  // validate / submit current
+  const num = document.getElementById("numerator").value.trim();
+  const den = document.getElementById("denominator").value.trim();
+
+  if (num === "" && den === "") {
+    msgEl.innerHTML = '<div class="err">Пожалуйста, заполните числитель или знаменатель.</div>';
+    return;
+  }
+
+  const payload = {
+    action: "submitAnswer",
+    assignmentId: assignment.assignmentId,
+    questionIndex: currentIndex,
+    studentName: studentNameInput.value.trim(),
+    numerator: num,
+    denominator: den,
+    answer: (num !== "" || den !== "") ? `${num}/${den}` : ""
+  };
+
+  try {
+    nextBtn.disabled = true;
+    prevBtn.disabled = true;
+    nextBtn.textContent = currentIndex === (assignment.questions.length - 1) ? "Отправка…" : "Отправка…";
+    const res = await fetch(WEB_APP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      answersCache[currentIndex] = { numerator: num, denominator: den };
+      msgEl.innerHTML = '<div class="ok">Ответ сохранён.</div>';
+      if (currentIndex < assignment.questions.length - 1) {
+        currentIndex++;
+        renderQuestion();
+      } else {
+        nextBtn.disabled = true;
+        prevBtn.disabled = false;
+        nextBtn.textContent = "Готово";
+        msgEl.innerHTML = '<div class="ok">Все ответы отправлены — спасибо! ✅</div>';
+      }
+    } else {
+      msgEl.innerHTML = '<div class="err">Ошибка сервера: '+ (data.message || "неизвестная") +'</div>';
+    }
+  } catch (err) {
+    msgEl.innerHTML = '<div class="err">Ошибка сети: ' + err.message + '</div>';
+  } finally {
+    nextBtn.disabled = false;
+    prevBtn.disabled = false;
+    nextBtn.textContent = currentIndex === (assignment.questions.length - 1) ? "Отправить" : "Далее →";
+  }
+});
+
+function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;" })[c]); }
+
+async function loadLatestAssignment(){
+  try {
+    const res = await fetch(WEB_APP_URL + "?action=getLatest");
+    const data = await res.json();
+    if (data.status === "ok" && data.assignment) {
+      assignment = data.assignment;
+      answersCache = new Array(assignment.questions.length).fill(null);
+      renderAll();
+    } else {
+      titleEl.textContent = "Заданий не найдено";
+      questionArea.innerHTML = '<div class="err">Похоже, заданий ещё нет. Дай знать учителю.</div>';
+    }
+  } catch (err) {
+    titleEl.textContent = "Ошибка загрузки";
+    questionArea.innerHTML = '<div class="err">Не удалось загрузить задание: ' + err.message + '</div>';
+  }
+}
+
+function renderAll(){
+  titleEl.textContent = escapeHtml(assignment.title || "Задание");
+  imageArea.innerHTML = `<img src="${assignment.imageUrl}" alt="Assignment image">`;
+  currentIndex = 0;
+  renderQuestion();
+}
+
+function renderQuestion(){
+  const qText = assignment.questions[currentIndex] || ("Вопрос " + (currentIndex+1));
+  questionArea.innerHTML = `
+    <div class="qtext">Вопрос ${currentIndex+1}: ${escapeHtml(qText)}</div>
+    <div class="frac-inputs">
+      <input id="numerator" placeholder="Числитель (например 3)" inputmode="numeric">
+      <input id="denominator" placeholder="Знаменатель (например 4)" inputmode="numeric">
+    </div>
+  `;
+  const cached = answersCache[currentIndex];
+  if (cached) {
+    document.getElementById("numerator").value = cached.numerator || "";
+    document.getElementById("denominator").value = cached.denominator || "";
+  }
+  progressEl.textContent = (currentIndex+1) + " / " + assignment.questions.length;
+  prevBtn.disabled = currentIndex === 0;
+  nextBtn.textContent = currentIndex === (assignment.questions.length - 1) ? "Отправить" : "Далее →";
+  msgEl.innerHTML = "";
+}
+
+function saveLocalInputs(){
+  const n = document.getElementById("numerator")?.value.trim() || "";
+  const d = document.getElementById("denominator")?.value.trim() || "";
+  answersCache[currentIndex] = { numerator: n, denominator: d };
+}
+
+loadLatestAssignment();
+</script>
+</body>
+</html>
