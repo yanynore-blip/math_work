@@ -1,0 +1,67 @@
+!doctype html
+html lang=ru
+head
+  meta charset=utf-8 
+  meta name=viewport content=width=device-width,initial-scale=1 
+  titleПлатформа — домашние заданияtitle
+  style
+    body{font-family system-ui, Arial, sans-serif; max-width880px; margin36px auto; padding20px; color#111}
+    header{displayflex;align-itemscenter;gap12px}
+    h1{margin0;font-size20px}
+    p.small{color#666;margin8px 0 18px}
+    .cards{displaygrid;grid-template-columnsrepeat(auto-fit,minmax(220px,1fr));gap12px}
+    .card{padding14px;border-radius10px;border1px solid #eee;background#fff;box-shadow0 6px 18px rgba(0,0,0,0.03)}
+    a.btn{displayinline-block;padding10px 12px;border-radius8px;background#2d8cff;color#fff;text-decorationnone}
+    label{displayblock;margin-top12px;font-weight600}
+    input[type=text]{width100%;padding8px;border1px solid #ddd;border-radius6px}
+    .hint{font-size13px;color#666;margin-top8px}
+    footer{margin-top24px;font-size13px;color#666}
+  style
+head
+body
+  header
+    h1Платформа для ДЗ — простая версияh1
+  header
+
+  p class=smallИспользуй кнопки ниже bСтраница учителяb — загрузка PNG и вопросов; bСтраница ученикаb — просмотр задания и ввод дробных ответов (числительзнаменатель).p
+
+  div class=cards
+    div class=card
+      h3Страница учителяh3
+      p class=hintЗагрузить PNG и задать вопросы.p
+      pa class=btn href=.teacher.html target=_blank rel=noopenerОткрыть teacher.htmlap
+    div
+
+    div class=card
+      h3Страница ученикаh3
+      p class=hintСтраница по умолчанию показывает последнее задание (getLatest).p
+      pa class=btn href=.student.html target=_blank rel=noopenerОткрыть student.htmlap
+    div
+
+    div class=card
+      h3Открыть конкретное заданиеh3
+      p class=hintЕсли хочешь открыть определённое задание — вставь assignmentId ниже и нажми «Открыть».p
+      labelassignmentIdlabel
+      input id=aid placeholder=Вставь сюда assignmentId, который вернул teacher.html
+      div style=margin-top10px
+        a id=openById class=btn href=# onclick=openById(event)Открытьa
+      div
+      p class=hint style=margin-top8pxURL будет вида codestudent.htmlaction=getById&id=ASSIGNMENT_IDcodep
+    div
+  div
+
+  footer
+    divВажное в обоих файлах (`teacher.html` и `student.html`) должен быть правильно подставлен bWEB_APP_URLb — URL твоего Apps Script (Deploy → Web app). Если студент не видит задание, проверь права доступа в Apps Script (Execute as Me, Who has access Anyone).div
+  footer
+
+script
+function openById(e){
+  e.preventDefault();
+  const id = document.getElementById('aid').value.trim();
+  if(!id){ alert('Вставь assignmentId'); return; }
+  const url = '.student.htmlaction=getById&id=' + encodeURIComponent(id);
+  window.open(url, '_blank');
+}
+script
+body
+html
