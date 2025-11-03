@@ -55,11 +55,9 @@
   </div>
 
 <script>
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwxiJktq7OnEEvF9htdmwmalfybsgokYHYabtWtko8Z7Avjy0JppsH5hX6Jy9LymKU18g/exec"; // <- вставь сюда URL Apps Script
-
 let assignment = null;
 let currentIndex = 0;
-let answersCache = []; // локально сохраняем введённые значения между страницами
+let answersCache = [];
 
 const titleEl = document.getElementById("title");
 const imageArea = document.getElementById("imageArea");
@@ -78,9 +76,8 @@ prevBtn.addEventListener("click", ()=> {
   }
 });
 
-nextBtn.addEventListener("click", async ()=> {
+nextBtn.addEventListener("click", ()=> {
   msgEl.innerHTML = "";
-  // validate / submit current
   const num = document.getElementById("numerator").value.trim();
   const den = document.getElementById("denominator").value.trim();
 
@@ -90,7 +87,6 @@ nextBtn.addEventListener("click", async ()=> {
   }
 
   const payload = {
-    action: "submitAnswer",
     assignmentId: assignment.assignmentId,
     questionIndex: currentIndex,
     studentName: studentNameInput.value.trim(),
@@ -99,58 +95,59 @@ nextBtn.addEventListener("click", async ()=> {
     answer: (num !== "" || den !== "") ? `${num}/${den}` : ""
   };
 
-  try {
-    nextBtn.disabled = true;
-    prevBtn.disabled = true;
-    nextBtn.textContent = currentIndex === (assignment.questions.length - 1) ? "Отправка…" : "Отправка…";
-    const res = await fetch(WEB_APP_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (data.status === "ok") {
-      answersCache[currentIndex] = { numerator: num, denominator: den };
-      msgEl.innerHTML = '<div class="ok">Ответ сохранён.</div>';
-      if (currentIndex < assignment.questions.length - 1) {
-        currentIndex++;
-        renderQuestion();
+  nextBtn.disabled = true;
+  prevBtn.disabled = true;
+  nextBtn.textContent = currentIndex === (assignment.questions.length - 1) ? "Отправка…" : "Отправка…";
+
+  google.script.run
+    .withSuccessHandler(data => {
+      if (data.status === "ok") {
+        answersCache[currentIndex] = { numerator: num, denominator: den };
+        msgEl.innerHTML = '<div class="ok">Ответ сохранён.</div>';
+        if (currentIndex < assignment.questions.length - 1) {
+          currentIndex++;
+          renderQuestion();
+        } else {
+          nextBtn.disabled = true;
+          prevBtn.disabled = false;
+          nextBtn.textContent = "Готово";
+          msgEl.innerHTML = '<div class="ok">Все ответы отправлены — спасибо! ✅</div>';
+        }
       } else {
-        nextBtn.disabled = true;
-        prevBtn.disabled = false;
-        nextBtn.textContent = "Готово";
-        msgEl.innerHTML = '<div class="ok">Все ответы отправлены — спасибо! ✅</div>';
+        msgEl.innerHTML = '<div class="err">Ошибка сервера: '+ (data.message || "неизвестная") +'</div>';
       }
-    } else {
-      msgEl.innerHTML = '<div class="err">Ошибка сервера: '+ (data.message || "неизвестная") +'</div>';
-    }
-  } catch (err) {
-    msgEl.innerHTML = '<div class="err">Ошибка сети: ' + err.message + '</div>';
-  } finally {
-    nextBtn.disabled = false;
-    prevBtn.disabled = false;
-    nextBtn.textContent = currentIndex === (assignment.questions.length - 1) ? "Отправить" : "Далее →";
-  }
+      nextBtn.disabled = false;
+      prevBtn.disabled = false;
+      nextBtn.textContent = currentIndex === (assignment.questions.length - 1) ? "Отправить" : "Далее →";
+    })
+    .withFailureHandler(err => {
+      msgEl.innerHTML = '<div class="err">Ошибка сети: ' + err.message + '</div>';
+      nextBtn.disabled = false;
+      prevBtn.disabled = false;
+      nextBtn.textContent = currentIndex === (assignment.questions.length - 1) ? "Отправить" : "Далее →";
+    })
+    .submitAnswer(payload);
 });
 
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;" })[c]); }
 
-async function loadLatestAssignment(){
-  try {
-    const res = await fetch(WEB_APP_URL + "?action=getLatest");
-    const data = await res.json();
-    if (data.status === "ok" && data.assignment) {
-      assignment = data.assignment;
-      answersCache = new Array(assignment.questions.length).fill(null);
-      renderAll();
-    } else {
-      titleEl.textContent = "Заданий не найдено";
-      questionArea.innerHTML = '<div class="err">Похоже, заданий ещё нет. Дай знать учителю.</div>';
-    }
-  } catch (err) {
-    titleEl.textContent = "Ошибка загрузки";
-    questionArea.innerHTML = '<div class="err">Не удалось загрузить задание: ' + err.message + '</div>';
-  }
+function loadLatestAssignment(){
+  google.script.run
+    .withSuccessHandler(data => {
+      if (data.status === "ok" && data.assignment) {
+        assignment = data.assignment;
+        answersCache = new Array(assignment.questions.length).fill(null);
+        renderAll();
+      } else {
+        titleEl.textContent = "Заданий не найдено";
+        questionArea.innerHTML = '<div class="err">Похоже, заданий ещё нет. Дай знать учителю.</div>';
+      }
+    })
+    .withFailureHandler(err => {
+      titleEl.textContent = "Ошибка загрузки";
+      questionArea.innerHTML = '<div class="err">Не удалось загрузить задание: ' + err.message + '</div>';
+    })
+    .getLatestAssignment();
 }
 
 function renderAll(){
@@ -190,4 +187,3 @@ loadLatestAssignment();
 </script>
 </body>
 </html>
-
