@@ -22,36 +22,33 @@
 </style>
 </head>
 <body>
-  <h1>Создать задание</h1>
-  <div>
-    <label>Название задания
-      <input id="title" placeholder="Например: Математика — тест 1">
-    </label>
+<h1>Создать задание</h1>
 
-    <label>Загрузить PNG (или перетащи сюда)
-      <input id="imageInput" type="file" accept="image/png,image/*">
-    </label>
-    <div id="preview" style="margin-top:8px"></div>
+<label>Название задания
+  <input id="title" placeholder="Например: Математика — тест 1">
+</label>
 
-    <div class="questions">
-      <label>Вопросы (порядок — порядок страниц, их можно добавлять/удалять)</label>
-      <div id="questionsList"></div>
-      <div style="margin-top:8px">
-        <button id="addQ" class="btn-ghost">+ Добавить вопрос</button>
-      </div>
-    </div>
+<label>Загрузить PNG (или перетащи сюда)
+  <input id="imageInput" type="file" accept="image/png,image/*">
+</label>
+<div id="preview" style="margin-top:8px"></div>
 
-    <div class="controls">
-      <button id="saveBtn">Сохранить задание и загрузить</button>
-      <span class="small">После сохранения появится assignmentId и ссылка для ученика (использует последнее задание).</span>
-    </div>
-
-    <div id="result" class="link-out"></div>
+<div class="questions">
+  <label>Вопросы (порядок — порядок страниц, их можно добавлять/удалять)</label>
+  <div id="questionsList"></div>
+  <div style="margin-top:8px">
+    <button id="addQ" class="btn-ghost">+ Добавить вопрос</button>
   </div>
+</div>
+
+<div class="controls">
+  <button id="saveBtn">Сохранить задание и загрузить</button>
+  <span class="small">После сохранения появится assignmentId и ссылка для ученика.</span>
+</div>
+
+<div id="result" class="link-out"></div>
 
 <script>
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwxiJktq7OnEEvF9htdmwmalfybsgokYHYabtWtko8Z7Avjy0JppsH5hX6Jy9LymKU18g/exec"; // <-- Вставь сюда URL Web App
-
 const imageInput = document.getElementById("imageInput");
 const preview = document.getElementById("preview");
 const questionsList = document.getElementById("questionsList");
@@ -75,17 +72,17 @@ function addQuestion(text){
   div.querySelector(".del").addEventListener("click", ()=>div.remove());
 }
 
-// drag & drop preview (упрощённо)
-preview.addEventListener('dragover', (e)=>{ e.preventDefault(); preview.style.opacity=0.8; });
-preview.addEventListener('dragleave', (e)=>{ preview.style.opacity=1; });
-preview.addEventListener('drop', (e)=> {
+// drag & drop preview
+preview.addEventListener('dragover', e=>{ e.preventDefault(); preview.style.opacity=0.8; });
+preview.addEventListener('dragleave', e=>{ preview.style.opacity=1; });
+preview.addEventListener('drop', e=> {
   e.preventDefault();
   preview.style.opacity=1;
   const file = e.dataTransfer.files[0];
   if (file) handleFile(file);
 });
 
-imageInput.addEventListener("change", (ev) => {
+imageInput.addEventListener("change", ev => {
   const file = ev.target.files[0];
   if (file) handleFile(file);
 });
@@ -93,14 +90,14 @@ imageInput.addEventListener("change", (ev) => {
 function handleFile(file){
   if (!file.type.startsWith("image/")) { alert("Загрузите изображение"); return; }
   const reader = new FileReader();
-  reader.onload = function(evt){
+  reader.onload = evt => {
     currentImageDataUrl = evt.target.result;
     preview.innerHTML = `<img src="${currentImageDataUrl}" alt="preview">`;
   };
   reader.readAsDataURL(file);
 }
 
-saveBtn.addEventListener("click", async ()=>{
+saveBtn.addEventListener("click", ()=> {
   result.innerHTML = "";
   const title = titleEl.value.trim() || ("Задание " + new Date().toLocaleString());
   const qEls = Array.from(document.querySelectorAll(".qtext"));
@@ -111,32 +108,27 @@ saveBtn.addEventListener("click", async ()=>{
   saveBtn.disabled = true;
   saveBtn.textContent = "Загрузка...";
 
-  try {
-    const payload = { action: "createAssignment", title, questions, imageDataUrl: currentImageDataUrl };
-    const res = await fetch(WEB_APP_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (data.status === "ok") {
-      result.innerHTML = `<div style="color:green">Готово. assignmentId: <b>${data.assignmentId}</b></div>
-                          <div style="margin-top:8px">Ссылка для ученика (использует последнее задание): <b>student.html</b> (подставь WEB_APP_URL в файл)</div>
-                          <div class="small" style="margin-top:6px">Если хочешь дать ссылку на конкретное задание: запиши assignmentId и используй ?action=getById&id=ASSIGNMENT_ID в student page.</div>`;
-    } else {
-      result.innerHTML = `<div style="color:red">Ошибка: ${data.message || "неизвестно"}</div>`;
-    }
-  } catch (err) {
-    result.innerHTML = `<div style="color:red">Ошибка сети: ${err.message}</div>`;
-  } finally {
-    saveBtn.disabled = false;
-    saveBtn.textContent = "Сохранить задание и загрузить";
-  }
+  // 🔹 Используем google.script.run вместо fetch
+  google.script.run
+    .withSuccessHandler(data => {
+      if (data.status === "ok") {
+        result.innerHTML = `<div style="color:green">Готово. assignmentId: <b>${data.assignmentId}</b></div>`;
+      } else {
+        result.innerHTML = `<div style="color:red">Ошибка: ${data.message || "неизвестно"}</div>`;
+      }
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Сохранить задание и загрузить";
+    })
+    .withFailureHandler(err => {
+      result.innerHTML = `<div style="color:red">Ошибка: ${err.message}</div>`;
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Сохранить задание и загрузить";
+    })
+    .createAssignment({ title, questions, imageDataUrl: currentImageDataUrl });
 });
 
-// добавим по умолчанию 5 вопросов (можешь удалить)
+// по умолчанию 5 вопросов
 for (let i=0;i<5;i++) addQuestion("");
 </script>
 </body>
 </html>
-
